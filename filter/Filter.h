@@ -10,8 +10,8 @@
 
 @interface Filter : NSObject
 
-- (void)updateCube;
 - (void)analyzeWithImage:(UIImage*) theImage;
+- (void)initWithOrder:(int)anOrder;
 
 @property (strong, nonatomic) NSData *theCube;
 @property (strong, nonatomic) NSNumber *cubeSize;

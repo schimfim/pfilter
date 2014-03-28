@@ -36,8 +36,8 @@ Filter *theFilter;
 {
     [super viewDidLoad];
 	// Do any additional setup after loading the view, typically from a nib.
-    theFilter = [[Filter alloc] init];
-    [theFilter updateCube];
+    //theFilter = [[Filter alloc] init];
+    //[theFilter updateCube];
 }
 
 - (void)didReceiveMemoryWarning
@@ -140,6 +140,8 @@ Filter *theFilter;
 }
 
 - (void)calcFilter {
+		theFilter = [[Filter alloc] init];
+		[theFilter initWithOrder:8];
     [theFilter analyzeWithImage:self.filterImage.image];
     [self.filterActivity stopAnimating];
 }

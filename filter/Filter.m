@@ -10,22 +10,29 @@
 
 @interface Filter()
 
+@property (nonatomic, strong) NSNumber *order;
 @property (strong, nonatomic) NSArray *hues;
 
 @end
 
 @implementation Filter
 
-int order = 8;
 CGFloat match[8] = {0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.825};
 CGFloat distm[8];
 CGFloat focus = 17.863032796;
 //CGFloat focus = 4.0;
 
+/* 
+	Public interface
+*/
+- (void)initWithOrder:(int)anOrder {
+	self.order = @(anOrder);
+	self.cubeSize = @(8);
+}
+
 - (void) updateCube {
-    // Allocate memory
-    const unsigned int size = 8;
-    self.cubeSize = @(size);
+    // todo: this should be kept in a singleton filter manager!
+    unsigned int size = self.cubeSize.intValue;
     long cubeDataSize = size * size * size * sizeof (float) * 4;
     float *cubeData = (float *)malloc (cubeDataSize);
     float *c = cubeData;
@@ -34,9 +41,6 @@ CGFloat focus = 17.863032796;
     CGFloat h,newh,s,v,r,g,b,rn,gn,bn,alpha;
     
     NSLog(@"Update cube --------");
-    //for(int di=0; di<order; di++) {
-    //    NSLog(@"dist[%i]=%f", di, distm[di]);
-    //}
 
     [self initFilter];
 
@@ -74,8 +78,7 @@ CGFloat focus = 17.863032796;
 
 - (void)analyzeWithImage:(UIImage*) theImage {
     
-    NSArray* centers = [self getRawData:theImage];
-    self.hues = [NSArray arrayWithArray:centers];
+    self.hues = [self getRawData:theImage];
     [self updateCube];
 }
 
@@ -93,7 +96,7 @@ CGFloat focus = 17.863032796;
     NSUInteger height = CGImageGetHeight(imageRef);
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     unsigned char *rawData = malloc(height * width * 4);
-    NSArray *hue_data = [NSArray new];
+    NSMutableArray *hue_data = [NSMutableArray new];
     NSUInteger bytesPerPixel = 4;
     NSUInteger bytesPerRow = bytesPerPixel * width;
     NSUInteger bitsPerComponent = 8;
@@ -109,32 +112,31 @@ CGFloat focus = 17.863032796;
     NSLog(@"Start color transform...");
     UIColor *col;
     CGFloat r,g,b,h,s,v,alpha;
-    int byteIndex = 0;
     int sample = 1000;
-    for (byteIndex = 0 ; byteIndex < width * height * 4; byteIndex += 4*sample)
+    for (int i=0, byteIndex = 0 ; byteIndex < width * height * 4; i++, byteIndex += 4*sample)
     {
         r = (float)rawData[byteIndex]/255;
         g = (float)rawData[byteIndex+1]/255;
         b = (float)rawData[byteIndex+2]/255;
         col = [UIColor colorWithRed:r green:g blue:b alpha:1.0f];
         [col getHue:&h saturation:&s brightness:&v alpha:&alpha];
-        hue_data = [hue_data arrayByAddingObject:[NSNumber numberWithFloat:h]];
-        
+        hue_data[i] = [NSNumber numberWithFloat:h];
     }
     
     // sort hue_data
     NSLog(@"Start sorting colors...");
     //NSArray* hue_sorted = [hue_data sortedArrayUsingFunction:floatSort context:NULL];
-    NSArray* hue_sorted = [hue_data sortedArrayUsingSelector:@selector(compare:)];
+    // todo: sort mutable array in place?
+    [hue_data sortUsingSelector:@selector(compare:)];
 
     NSLog(@"...done.");
     
     // select percentiles
-    NSArray* centers = [NSArray new];
-    int n_hues = [hue_sorted count];
-    int step = n_hues/(order+1);
-    for(int i=0,idx=(step-1); i<order && idx<n_hues; i++,idx+=step)
-        centers = [centers arrayByAddingObject:[hue_sorted objectAtIndex:idx]];
+    NSMutableArray* centers = [NSMutableArray new];
+    long n_hues = hue_data.count;
+    long step = n_hues/(self.order.intValue +1);
+    for(long i=0,idx=(step-1); i<self.order.intValue && idx<n_hues; i++,idx+=step)
+        centers[i] = hue_data[idx];
     
     NSLog(@"%@",[centers componentsJoinedByString:@", "]);
     
@@ -144,7 +146,7 @@ CGFloat focus = 17.863032796;
 - (NSArray *)actWithDist:(NSArray*)dist {
     NSMutableArray* memb = [NSMutableArray new];
     double d;
-    for(int i = 0; i<order; i++) {
+    for(int i = 0; i<self.order.intValue; i++) {
         d = ((NSNumber*)[dist objectAtIndex:i]).floatValue;
         [memb addObject:[NSNumber numberWithDouble:pow(cos(d*2*M_PI)/2.0+0.5,focus)]];
     }
@@ -154,11 +156,11 @@ CGFloat focus = 17.863032796;
 - (CGFloat)calcHueWithHue:(CGFloat)hue {
     NSMutableArray* dist = [NSMutableArray new];
     CGFloat newh = hue;
-    for(int i=0;i<order;i++) {
+    for(int i=0;i<self.order.intValue;i++) {
         [dist addObject:[NSNumber numberWithDouble:[self rdist:hue From:match[i]]]];
     }
     NSArray* memb = [self actWithDist:dist];
-    for(int i=0; i<order; i++) {
+    for(int i=0; i<self.order.intValue; i++) {
         newh -= ((NSNumber*)memb[i]).floatValue * distm[i];
     }
     if(newh < 0.0) {
@@ -194,7 +196,7 @@ for(int i=0;i<order;i++) {
 
 - (void)initFilter {
     float from;
-    for(int i = 0; i<order; i++) {
+    for(int i = 0; i<self.order.intValue; i++) {
         //from = ((NSNumber*)_hues[i]).floatValue;
         from = [self.hues[i] floatValue];
         distm[i] = [self rdist:match[i] From:from];
