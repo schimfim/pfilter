@@ -12,13 +12,18 @@
 
 @property (nonatomic, strong) NSNumber *order;
 @property (strong, nonatomic) NSArray *hues;
+@property (strong, nonatomic) NSMutableArray *distm;
+@property (strong, nonatomic) NSData *theCube;
+@property (strong, nonatomic) NSNumber *cubeSize;
 
 @end
 
 @implementation Filter
 
+static Filter *currentFilter;
+static NSMutableArray *filters;
+
 CGFloat match[8] = {0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.825};
-CGFloat distm[8];
 CGFloat focus = 17.863032796;
 //CGFloat focus = 4.0;
 
@@ -42,7 +47,6 @@ CGFloat focus = 17.863032796;
     
     NSLog(@"Update cube --------");
 
-    [self initFilter];
 
     // Populate cube with a simple gradient going from 0 to 1
     for (int z = 0; z < size; z++){
@@ -76,10 +80,63 @@ CGFloat focus = 17.863032796;
     //                                    length:cubeDataSize];
 }
 
-- (void)analyzeWithImage:(UIImage*) theImage {
++ (void)setCurrentFilter:(Filter*)nf {
+    currentFilter = nf;
+}
+
++ (void)setFilters:(NSMutableArray*)array {
+    filters = [NSMutableArray arrayWithArray:array];
+}
+
++ (void)newFilterWithImage:(UIImage*) theImage {
+    Filter *nf = [[Filter alloc] init];
+    [nf initWithOrder:8];
+    nf.hues = [nf getRawData:theImage];
+    [nf initFilter];
+    [nf updateCube];
+    [Filter addFilter:nf];
+    [Filter setCurrentFilter:nf];
+    nf.image = theImage;
+    // todo: thumbnail
+    nf.text = @"Some Filter";
+}
+
++ (NSMutableArray*)getFilters {
+		if(filters == nil)
+			filters = [NSMutableArray new];
+		return filters;
+}
+
++ (void)addFilter:(Filter*)f {
+    NSMutableArray *filts = [Filter getFilters];
+    [filts addObject:f];
+    NSLog(@"Num filters:%lu", (unsigned long)[filts count]);
+}
+
+/*
+ Filter Processor
+ */
++ (UIImage*)processFilter:(UIImage*)anImage {
+		return [currentFilter processFilter:anImage];
+}
+
+- (UIImage*)processFilter:(UIImage*)anImage {
+
+    CIFilter *colorCube = [CIFilter filterWithName:@"CIColorCube"];
+    [colorCube setValue:self.cubeSize forKey:@"inputCubeDimension"];
+    // Set data for cube
+    [colorCube setValue:self.theCube forKey:@"inputCubeData"];
     
-    self.hues = [self getRawData:theImage];
-    [self updateCube];
+    CIContext *context = [CIContext contextWithOptions:nil];
+    CIImage *img=[[CIImage alloc] initWithImage:anImage];
+    [colorCube setValue:img forKey:kCIInputImageKey];
+    CIImage *result = [colorCube valueForKey:kCIOutputImageKey];
+    CGRect extent = [result extent];
+    CGImageRef cgImage = [context createCGImage:result fromRect:extent];
+    
+    UIImage *myNewImage = [UIImage imageWithCGImage:cgImage];
+    
+    return myNewImage;
 }
 
 // Internal
@@ -161,7 +218,7 @@ CGFloat focus = 17.863032796;
     }
     NSArray* memb = [self actWithDist:dist];
     for(int i=0; i<self.order.intValue; i++) {
-        newh -= ((NSNumber*)memb[i]).floatValue * distm[i];
+        newh -= ((NSNumber*)memb[i]).floatValue * [self.distm[i] floatValue];
     }
     if(newh < 0.0) {
         newh += 1.0;
@@ -196,11 +253,32 @@ for(int i=0;i<order;i++) {
 
 - (void)initFilter {
     float from;
+    self.distm = [NSMutableArray new];
     for(int i = 0; i<self.order.intValue; i++) {
-        //from = ((NSNumber*)_hues[i]).floatValue;
         from = [self.hues[i] floatValue];
-        distm[i] = [self rdist:match[i] From:from];
+        //d = [NSNumber numberWithFloat:[self rdist:match[i] From:from]];
+        [self.distm addObject:[NSNumber numberWithFloat:[self rdist:match[i] From:from]]];
     }
+}
+
+/*
+ NSCoder interface
+ */
+
+- (void)encodeWithCoder:(NSCoder *)coder {
+    [coder encodeObject:self.hues forKey:@"hues"];
+    [coder encodeObject:self.image forKey:@"image"];
+    [coder encodeObject:self.text forKey:@"text"];
+}
+
+-( id)initWithCoder:(NSCoder *)coder {
+	if ((self = [super init]))
+	{
+        self.hues = [coder decodeObjectForKey:@"hues"];
+        self.image = [coder decodeObjectForKey:@"image"];
+        self.text = [coder decodeObjectForKey:@"text"];
+ 	}
+	return self;
 }
 
 @end

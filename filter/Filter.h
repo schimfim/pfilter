@@ -8,12 +8,15 @@
 
 #import <Foundation/Foundation.h>
 
-@interface Filter : NSObject
+@interface Filter : NSObject <NSCoding>
 
-- (void)analyzeWithImage:(UIImage*) theImage;
-- (void)initWithOrder:(int)anOrder;
++ (void)newFilterWithImage:(UIImage*) theImage;
++ (UIImage*)processFilter:(UIImage*)anImage;
++ (NSMutableArray*)getFilters;
++ (void)setFilters:(NSMutableArray*)array;
++ (void)setCurrentFilter:(Filter*)nf;
 
-@property (strong, nonatomic) NSData *theCube;
-@property (strong, nonatomic) NSNumber *cubeSize;
+@property (strong, nonatomic) NSString *text;
+@property (strong, nonatomic) UIImage *image;
 
 @end
